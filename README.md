@@ -110,16 +110,13 @@ php -S localhost:3000
 - **WebSocket Test**: `http://localhost:3000/test-websocket-simple.html`
   - Tests WebSocket connection to CryptoCompare
   - Displays raw data feed
+  - Essential for debugging connection issues
 
 - **Real-time Test**: `http://localhost:3000/real-time-test.html`
   - Comprehensive real-time testing interface
   - Manual controls for testing different timeframes
   - Live logging of data updates
-
-- **Debug Page**: `http://localhost:3000/debug-realtime.html`
-  - Advanced debugging interface
-  - Multiple symbol testing
-  - Detailed WebSocket monitoring
+  - Essential for debugging real-time functionality
 
 ## 🔧 Configuration Options
 
@@ -162,6 +159,7 @@ The application supports various cryptocurrency pairs. Examples:
 - Verify WebSocket connection in browser console
 - Check API key in `.env` file
 - Test WebSocket connection at `/test-websocket-simple.html`
+- Use real-time test page at `/real-time-test.html` for detailed debugging
 
 **3. Time Violation Errors**
 - Clear browser cache
@@ -177,8 +175,9 @@ The application supports various cryptocurrency pairs. Examples:
 
 1. **Check Console Logs**: Open browser developer tools and check for errors
 2. **Test WebSocket**: Visit `/test-websocket-simple.html` to verify connection
-3. **Verify API Key**: Ensure your CryptoCompare API key is valid
-4. **Clear Cache**: Clear browser cache and restart server
+3. **Test Real-time**: Visit `/real-time-test.html` for comprehensive debugging
+4. **Verify API Key**: Ensure your CryptoCompare API key is valid
+5. **Clear Cache**: Clear browser cache and restart server
 
 ## 📁 Project Structure
 
@@ -195,7 +194,6 @@ test-charting-library/
 ├── index.html               # Main chart page
 ├── real-time-test.html      # Real-time testing page
 ├── test-websocket-simple.html # WebSocket test page
-├── debug-realtime.html      # Debug interface
 ├── .env                     # Environment variables (create from env.example)
 ├── env.example              # Environment template
 └── README.md               # This file
@@ -218,7 +216,12 @@ test-charting-library/
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project contains code from multiple sources with different licenses:
+
+- **TradingView Charting Library**: Subject to TradingView's license terms
+- **Application Code**: MIT License - Copyright (c) 2024 Arshad Shaheen
+
+For complete license information, see the [LICENSE](LICENSE) file.
 
 ## 🆘 Support
 

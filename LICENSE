@@ -1,6 +1,24 @@
-MIT License
+# License Information
 
-Copyright (c) 2020 TradingView, Inc.
+This project contains code from multiple sources with different licenses:
+
+## TradingView Charting Library
+
+The TradingView Charting Library is included in the `charting_library_cloned_data/` directory and is subject to TradingView's license terms.
+
+**Copyright (c) 2020 TradingView, Inc.**
+
+For the complete TradingView license terms and usage restrictions, please refer to:
+- [TradingView Charting Library License](https://www.tradingview.com/HTML5-stock-forex-bitcoin-charting-library/?feature=technical-analysis-charts)
+- [TradingView Terms of Service](https://www.tradingview.com/terms/)
+
+## Real-Time Cryptocurrency Charting Application
+
+The real-time cryptocurrency charting application code (excluding TradingView library) is licensed under the MIT License.
+
+**MIT License**
+
+Copyright (c) 2024 Arshad Shaheen
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +37,25 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Project Components
+
+### TradingView Library (TradingView License)
+- `charting_library_cloned_data/charting_library/` - TradingView's Advanced Charts library
+- All files within this directory are subject to TradingView's license
+
+### Application Code (MIT License)
+- `src/` - All application source code
+- `index.html` - Main application page
+- `real-time-test.html` - Testing interface
+- `test-websocket-simple.html` - WebSocket testing
+- `env.example` - Environment configuration template
+- `README.md` - Project documentation
+- `README-ENV.md` - Environment configuration guide
+
+## Usage Notes
+
+- The TradingView Charting Library requires proper licensing from TradingView for commercial use
+- The application code (MIT licensed) can be freely used, modified, and distributed
+- Always comply with TradingView's terms when using their charting library
+- This project is for educational and development purposes
