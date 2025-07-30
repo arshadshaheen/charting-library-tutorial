@@ -67,46 +67,50 @@ ccStreamer.onmessage = function onStreamMessage(event) {
             return;
         }
         
-        const channelString = `0~${exchange}~${fromSymbol}~${toSymbol}`;
-        const subscriptionItem = channelToSubscription.get(channelString);
+        		const channelString = `0~${exchange}~${fromSymbol}~${toSymbol}`;
+		
+		// Find all subscriptions for this channel (different resolutions)
+		const subscriptions = Array.from(channelToSubscription.values())
+			.filter(item => item.channelString === channelString);
+		
+		if (subscriptions.length === 0) {
+			console.log('[socket] No subscriptions found for channel:', channelString);
+			return;
+		}
         
-        if (subscriptionItem === undefined) {
-            console.log('[socket] No subscription found for channel:', channelString);
-            return;
-        }
-        
-        const lastBar = subscriptionItem.lastDailyBar;
-        
-        if (!lastBar) {
-            console.log('[socket] No lastBar available for channel:', channelString);
-            return;
-        }
-        
-        // Update the current candle with new trade data
-        const updatedBar = {
-            ...lastBar,
-            high: Math.max(lastBar.high, tradePrice),
-            low: Math.min(lastBar.low, tradePrice),
-            close: tradePrice,
-        };
-        
-        // Update the stored bar
-        subscriptionItem.lastDailyBar = updatedBar;
-        
-
-        
-        console.log('[socket] Updated candle for', channelString, 'price:', tradePrice, 'resolution:', subscriptionItem.resolution);
-        
-        // Send updated bar to all subscribers
-        subscriptionItem.handlers.forEach((handler) => {
-            console.log('[socket] Calling handler callback with updated bar:', updatedBar);
-            try {
-                handler.callback(updatedBar);
-                console.log('[socket] Successfully called handler callback');
-            } catch (error) {
-                console.error('[socket] Error in handler callback:', error);
-            }
-        });
+        		// Process each subscription (different resolutions) separately
+		subscriptions.forEach(subscriptionItem => {
+			const lastBar = subscriptionItem.lastDailyBar;
+			
+			if (!lastBar) {
+				console.log('[socket] No lastBar available for channel:', channelString, 'resolution:', subscriptionItem.resolution);
+				return;
+			}
+			
+			// Update the current candle with new trade data
+			const updatedBar = {
+				...lastBar,
+				high: Math.max(lastBar.high, tradePrice),
+				low: Math.min(lastBar.low, tradePrice),
+				close: tradePrice,
+			};
+			
+			// Update the stored bar
+			subscriptionItem.lastDailyBar = updatedBar;
+			
+			console.log('[socket] Updated candle for', channelString, 'price:', tradePrice, 'resolution:', subscriptionItem.resolution);
+			
+			// Send updated bar to all subscribers for this resolution
+			subscriptionItem.handlers.forEach((handler) => {
+				console.log('[socket] Calling handler callback with updated bar:', updatedBar);
+				try {
+					handler.callback(updatedBar);
+					console.log('[socket] Successfully called handler callback');
+				} catch (error) {
+					console.error('[socket] Error in handler callback:', error);
+				}
+			});
+		});
         
 
         
@@ -122,85 +126,114 @@ function getNextDailyBarTime(barTime) {
 }
 
 export function subscribeOnStream(
-    symbolInfo,
-    resolution,
-    onRealtimeCallback,
-    subscriberUID,
-    onResetCacheNeededCallback,
-    lastDailyBar
+	symbolInfo,
+	resolution,
+	onRealtimeCallback,
+	subscriberUID,
+	onResetCacheNeededCallback,
+	lastDailyBar
 ) {
-    const parsedSymbol = parseFullSymbol(symbolInfo.full_name);
-    if (!parsedSymbol) {
-        console.error('[subscribeBars]: Cannot parse symbol:', symbolInfo.full_name);
-        return;
-    }
-    const channelString = `0~${parsedSymbol.exchange}~${parsedSymbol.fromSymbol}~${parsedSymbol.toSymbol}`;
-    const handler = {
-        id: subscriberUID,
-        callback: onRealtimeCallback,
-    };
-    let subscriptionItem = channelToSubscription.get(channelString);
-    if (subscriptionItem) {
-        // Already subscribed to the channel, use the existing subscription
-        subscriptionItem.handlers.push(handler);
-        console.log('[subscribeBars]: Added handler to existing subscription for channel:', channelString);
-        return;
-    }
-    subscriptionItem = {
-        subscriberUID,
-        resolution,
-        lastDailyBar,
-        handlers: [handler],
-    };
-    channelToSubscription.set(channelString, subscriptionItem);
-    console.log(
-        '[subscribeBars]: Subscribe to streaming. Channel:',
-        channelString,
-        'lastDailyBar:',
-        lastDailyBar
-    );
-    const subRequest = {
-        action: 'SubAdd',
-        subs: [channelString],
-    };
-    console.log('[subscribeBars]: Sending subscription request:', subRequest);
-    if (isConnected) {
-        ccStreamer.send(JSON.stringify(subRequest));
-    } else {
-        console.error('[subscribeBars]: WebSocket not connected, cannot subscribe');
-    }
+	const parsedSymbol = parseFullSymbol(symbolInfo.full_name);
+	if (!parsedSymbol) {
+		console.error('[subscribeBars]: Cannot parse symbol:', symbolInfo.full_name);
+		return;
+	}
+	
+	// Create resolution-specific channel string to handle multiple timeframes
+	const channelString = `0~${parsedSymbol.exchange}~${parsedSymbol.fromSymbol}~${parsedSymbol.toSymbol}`;
+	const resolutionKey = `${channelString}_${resolution}`;
+    	const handler = {
+		id: subscriberUID,
+		callback: onRealtimeCallback,
+	};
+	
+	// Check if we already have a subscription for this specific resolution
+	let subscriptionItem = channelToSubscription.get(resolutionKey);
+	if (subscriptionItem) {
+		// Already subscribed to this resolution, add the handler
+		subscriptionItem.handlers.push(handler);
+		console.log('[subscribeBars]: Added handler to existing subscription for resolution:', resolution, 'channel:', channelString);
+		return;
+	}
+	
+	// Create new subscription for this resolution
+	subscriptionItem = {
+		subscriberUID,
+		resolution,
+		lastDailyBar,
+		handlers: [handler],
+		channelString, // Store original channel string for WebSocket subscription
+	};
+	channelToSubscription.set(resolutionKey, subscriptionItem);
+    	console.log(
+		'[subscribeBars]: Subscribe to streaming. Channel:',
+		channelString,
+		'Resolution:',
+		resolution,
+		'lastDailyBar:',
+		lastDailyBar
+	);
+	
+	// Only subscribe to WebSocket if we don't already have a subscription for this channel
+	const existingChannelSubscription = Array.from(channelToSubscription.values())
+		.find(item => item.channelString === channelString);
+	
+	if (!existingChannelSubscription) {
+		const subRequest = {
+			action: 'SubAdd',
+			subs: [channelString],
+		};
+		console.log('[subscribeBars]: Sending subscription request:', subRequest);
+		if (isConnected) {
+			ccStreamer.send(JSON.stringify(subRequest));
+		} else {
+			console.error('[subscribeBars]: WebSocket not connected, cannot subscribe');
+		}
+	} else {
+		console.log('[subscribeBars]: WebSocket already subscribed to channel:', channelString);
+	}
 }
 
 export function unsubscribeFromStream(subscriberUID) {
-    // Find a subscription with id === subscriberUID
-    for (const channelString of channelToSubscription.keys()) {
-        const subscriptionItem = channelToSubscription.get(channelString);
-        const handlerIndex = subscriptionItem.handlers.findIndex(
-            (handler) => handler.id === subscriberUID
-        );
+	// Find a subscription with id === subscriberUID
+	for (const [resolutionKey, subscriptionItem] of channelToSubscription.entries()) {
+		const handlerIndex = subscriptionItem.handlers.findIndex(
+			(handler) => handler.id === subscriberUID
+		);
 
-        if (handlerIndex !== -1) {
-            // Remove from handlers
-            subscriptionItem.handlers.splice(handlerIndex, 1);
+		if (handlerIndex !== -1) {
+			// Remove from handlers
+			subscriptionItem.handlers.splice(handlerIndex, 1);
 
-            if (subscriptionItem.handlers.length === 0) {
-                // Unsubscribe from the channel if it was the last handler
-                console.log(
-                    '[unsubscribeBars]: Unsubscribe from streaming. Channel:',
-                    channelString
-                );
-                const subRequest = {
-                    action: 'SubRemove',
-                    subs: [channelString],
-                };
-                if (isConnected) {
-                    ccStreamer.send(JSON.stringify(subRequest));
-                } else {
-                    console.error('[unsubscribeBars]: WebSocket not connected, cannot unsubscribe');
-                }
-                channelToSubscription.delete(channelString);
-                break;
-            }
-        }
-    }
+			if (subscriptionItem.handlers.length === 0) {
+				// Unsubscribe from the channel if it was the last handler for this resolution
+				console.log(
+					'[unsubscribeBars]: Unsubscribe from streaming. Resolution:',
+					subscriptionItem.resolution,
+					'Channel:',
+					subscriptionItem.channelString
+				);
+				
+				// Check if there are any other subscriptions for this channel
+				const otherSubscriptions = Array.from(channelToSubscription.values())
+					.filter(item => item.channelString === subscriptionItem.channelString && item !== subscriptionItem);
+				
+				if (otherSubscriptions.length === 0) {
+					// No other subscriptions for this channel, unsubscribe from WebSocket
+					const subRequest = {
+						action: 'SubRemove',
+						subs: [subscriptionItem.channelString],
+					};
+					if (isConnected) {
+						ccStreamer.send(JSON.stringify(subRequest));
+					} else {
+						console.error('[unsubscribeBars]: WebSocket not connected, cannot unsubscribe');
+					}
+				}
+				
+				channelToSubscription.delete(resolutionKey);
+				break;
+			}
+		}
+	}
 }

@@ -176,10 +176,12 @@ export default {
 				}
 			});
 			if (firstDataRequest && bars.length > 0) {
-				lastBarsCache.set(symbolInfo.full_name, {
+				// Cache with resolution-specific key to prevent conflicts
+				const cacheKey = `${symbolInfo.full_name}_${resolution}`;
+				lastBarsCache.set(cacheKey, {
 					...bars[bars.length - 1],
 				});
-				console.log('[getBars]: Cached last bar:', bars[bars.length - 1]);
+				console.log('[getBars]: Cached last bar for resolution', resolution, ':', bars[bars.length - 1]);
 			}
 			console.log(`[getBars]: returned ${bars.length} bar(s)`);
 			onHistoryCallback(bars, {
@@ -199,8 +201,11 @@ export default {
 		onResetCacheNeededCallback,
 	) => {
 		console.log('[subscribeBars]: Method call with subscriberUID:', subscriberUID, 'symbolInfo:', symbolInfo, 'resolution:', resolution);
-		const lastBar = lastBarsCache.get(symbolInfo.full_name);
-		console.log('[subscribeBars]: Last bar from cache:', lastBar);
+		
+		// Clear the cache when switching timeframes to prevent time violations
+		const cacheKey = `${symbolInfo.full_name}_${resolution}`;
+		const lastBar = lastBarsCache.get(cacheKey);
+		console.log('[subscribeBars]: Last bar from cache for resolution', resolution, ':', lastBar);
 		
 		subscribeOnStream(
 			symbolInfo,
@@ -215,5 +220,11 @@ export default {
 	unsubscribeBars: (subscriberUID) => {
 		console.log('[unsubscribeBars]: Method call with subscriberUID:', subscriberUID);
 		unsubscribeFromStream(subscriberUID);
+	},
+	
+	// Clear cache when switching timeframes to prevent time violations
+	clearCache: () => {
+		console.log('[clearCache]: Clearing all cached bars');
+		lastBarsCache.clear();
 	},
 };
