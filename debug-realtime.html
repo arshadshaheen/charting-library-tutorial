@@ -1,0 +1,142 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <title>Real-time Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .log { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e8; color: #2e7d32; }
+        .info { background: #e3f2fd; color: #1565c0; }
+        .warning { background: #fff3e0; color: #ef6c00; }
+    </style>
+</head>
+<body>
+    <h1>Real-time Data Debug</h1>
+    <div id="status">Initializing...</div>
+    <div id="logs"></div>
+    
+    <script type="module">
+        import { apiKey } from './src/helpers.js';
+        
+        const statusDiv = document.getElementById('status');
+        const logsDiv = document.getElementById('logs');
+        
+        function addLog(message, type = 'info') {
+            const logDiv = document.createElement('div');
+            logDiv.className = `log ${type}`;
+            logDiv.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logsDiv.appendChild(logDiv);
+            
+            // Keep only last 20 logs
+            if (logsDiv.children.length > 20) {
+                logsDiv.removeChild(logsDiv.firstChild);
+            }
+        }
+        
+        // Using the documentation approach
+        addLog(`Using API Key: ${apiKey.substring(0, 10)}...`, 'info');
+        
+        const ccStreamer = new WebSocket('wss://streamer.cryptocompare.com/v2?api_key=' + apiKey);
+        
+        ccStreamer.onopen = function onStreamOpen() {
+            addLog('WebSocket connection opened', 'success');
+            statusDiv.textContent = 'Connected to CryptoCompare WebSocket';
+            statusDiv.style.color = 'green';
+            
+            // Subscribe to Bitfinex BTC/USD (using the same symbol as the chart)
+            const subRequest = {
+                "action": "SubAdd",
+                "subs": ["0~Bitfinex~BTC~USD"]
+            };
+            
+            addLog(`Sending subscription request: ${JSON.stringify(subRequest)}`, 'info');
+            ccStreamer.send(JSON.stringify(subRequest));
+        };
+        
+        ccStreamer.onmessage = function onStreamMessage(event) {
+            const message = event.data;
+            addLog(`Received message: ${message}`, 'info');
+            
+            try {
+                const data = JSON.parse(message);
+                
+                // Check if this is a subscription confirmation
+                if (data.action === 'SubAdd' && data.subs) {
+                    addLog(`Subscription confirmed for: ${JSON.stringify(data.subs)}`, 'success');
+                    return;
+                }
+                
+                // Check if this is a trade event (TYPE = 0)
+                if (data.TYPE && parseInt(data.TYPE) === 0) {
+                    addLog(`Trade event: ${JSON.stringify(data)}`, 'success');
+                    
+                    // Extract trade data
+                    const {
+                        M: exchange,
+                        FSYM: fromSymbol,
+                        TSYM: toSymbol,
+                        TS: tradeTimeStr,
+                        P: tradePriceStr,
+                    } = data;
+                    
+                    if (exchange && fromSymbol && toSymbol && tradeTimeStr && tradePriceStr) {
+                        const tradePrice = parseFloat(tradePriceStr);
+                        const tradeTime = parseInt(tradeTimeStr);
+                        const tradeDate = new Date(tradeTime * 1000);
+                        
+                        addLog(`Trade: ${fromSymbol}/${toSymbol} on ${exchange} at ${tradeDate.toLocaleTimeString()} - Price: $${tradePrice}`, 'success');
+                    }
+                } else {
+                    addLog(`Non-trade event: ${JSON.stringify(data)}`, 'warning');
+                }
+            } catch (error) {
+                addLog(`Error parsing message: ${error.message}`, 'error');
+            }
+        };
+        
+        ccStreamer.onclose = function onStreamClose(event) {
+            addLog(`WebSocket connection closed: ${event.code} - ${event.reason}`, 'error');
+            statusDiv.textContent = 'Disconnected from WebSocket';
+            statusDiv.style.color = 'red';
+        };
+        
+        ccStreamer.onerror = function onStreamError(error) {
+            addLog(`WebSocket error: ${error}`, 'error');
+            statusDiv.textContent = 'WebSocket Error';
+            statusDiv.style.color = 'red';
+        };
+        
+        // Test different symbols
+        setTimeout(() => {
+            addLog('Testing additional symbols...', 'info');
+            
+            const additionalSymbols = [
+                "0~Coinbase~BTC~USD",
+                "0~Kraken~BTC~USD",
+                "0~Binance~BTC~USDT"
+            ];
+            
+            additionalSymbols.forEach(symbol => {
+                const subRequest = {
+                    "action": "SubAdd",
+                    "subs": [symbol]
+                };
+                addLog(`Subscribing to ${symbol}`, 'info');
+                ccStreamer.send(JSON.stringify(subRequest));
+            });
+        }, 5000);
+        
+        // Monitor connection status
+        setInterval(() => {
+            if (ccStreamer.readyState === WebSocket.OPEN) {
+                addLog('WebSocket connection is active', 'info');
+            } else if (ccStreamer.readyState === WebSocket.CONNECTING) {
+                addLog('WebSocket is connecting...', 'warning');
+            } else if (ccStreamer.readyState === WebSocket.CLOSED) {
+                addLog('WebSocket is closed', 'error');
+            }
+        }, 10000);
+    </script>
+</body>
+</html> 

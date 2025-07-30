@@ -1,0 +1,56 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket Test</h1>
+    <div id="status">Connecting...</div>
+    <div id="messages"></div>
+    
+    <script type="module">
+        import { apiKey } from './src/helpers.js';
+        
+        const socket = new WebSocket('wss://streamer.cryptocompare.com/v2?api_key=' + apiKey);
+        const statusDiv = document.getElementById('status');
+        const messagesDiv = document.getElementById('messages');
+        
+        socket.addEventListener('open', () => {
+            statusDiv.textContent = 'Connected';
+            statusDiv.style.color = 'green';
+            
+            // Subscribe to BTC/USD on Bitfinex
+            const subRequest = {
+                action: 'SubAdd',
+                subs: ['0~Bitfinex~BTC~USD']
+            };
+            socket.send(JSON.stringify(subRequest));
+            console.log('Sent subscription request:', subRequest);
+        });
+        
+        socket.addEventListener('message', (event) => {
+            const data = JSON.parse(event.data);
+            console.log('Received:', data);
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.textContent = JSON.stringify(data, null, 2);
+            messagesDiv.appendChild(messageDiv);
+            
+            // Keep only last 10 messages
+            if (messagesDiv.children.length > 10) {
+                messagesDiv.removeChild(messagesDiv.firstChild);
+            }
+        });
+        
+        socket.addEventListener('close', (reason) => {
+            statusDiv.textContent = 'Disconnected: ' + reason;
+            statusDiv.style.color = 'red';
+        });
+        
+        socket.addEventListener('error', (error) => {
+            statusDiv.textContent = 'Error: ' + error;
+            statusDiv.style.color = 'red';
+        });
+    </script>
+</body>
+</html> 

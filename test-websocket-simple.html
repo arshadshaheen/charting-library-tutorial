@@ -1,0 +1,93 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <title>Simple WebSocket Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .connected { background: #e8f5e8; color: #2e7d32; }
+        .disconnected { background: #ffebee; color: #c62828; }
+        .connecting { background: #fff3e0; color: #ef6c00; }
+        .message { background: #f5f5f5; padding: 5px; margin: 2px 0; border-radius: 3px; font-family: monospace; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h1>Simple WebSocket Test</h1>
+    <div id="status" class="status connecting">Connecting...</div>
+    <div id="messages"></div>
+    
+    <script type="module">
+        import { apiKey } from './src/helpers.js';
+        
+        const statusDiv = document.getElementById('status');
+        const messagesDiv = document.getElementById('messages');
+        
+        function addMessage(message) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message';
+            messageDiv.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            messagesDiv.appendChild(messageDiv);
+            
+            // Keep only last 50 messages
+            if (messagesDiv.children.length > 50) {
+                messagesDiv.removeChild(messagesDiv.firstChild);
+            }
+        }
+        
+        // Using the documentation approach exactly
+        const ccStreamer = new WebSocket('wss://streamer.cryptocompare.com/v2?api_key=' + apiKey);
+        
+        ccStreamer.onopen = function onStreamOpen() {
+            statusDiv.textContent = 'Connected to CryptoCompare WebSocket';
+            statusDiv.className = 'status connected';
+            addMessage('WebSocket connection opened');
+            
+            // Subscribe to Bitfinex BTC/USD
+            const subRequest = {
+                "action": "SubAdd",
+                "subs": ["0~Bitfinex~BTC~USD"]
+            };
+            ccStreamer.send(JSON.stringify(subRequest));
+            addMessage(`Sent subscription: ${JSON.stringify(subRequest)}`);
+        };
+        
+        ccStreamer.onmessage = function onStreamMessage(event) {
+            const message = event.data;
+            addMessage(`Received: ${message}`);
+            
+            try {
+                const data = JSON.parse(message);
+                
+                // Check if this is a trade event
+                if (data.TYPE && parseInt(data.TYPE) === 0) {
+                    const {
+                        M: exchange,
+                        FSYM: fromSymbol,
+                        TSYM: toSymbol,
+                        P: tradePriceStr,
+                    } = data;
+                    
+                    if (exchange && fromSymbol && toSymbol && tradePriceStr) {
+                        const tradePrice = parseFloat(tradePriceStr);
+                        addMessage(`TRADE: ${fromSymbol}/${toSymbol} on ${exchange} - $${tradePrice}`);
+                    }
+                }
+            } catch (error) {
+                addMessage(`Error parsing: ${error.message}`);
+            }
+        };
+        
+        ccStreamer.onclose = function onStreamClose(event) {
+            statusDiv.textContent = `Disconnected: ${event.code} - ${event.reason}`;
+            statusDiv.className = 'status disconnected';
+            addMessage(`WebSocket closed: ${event.code} - ${event.reason}`);
+        };
+        
+        ccStreamer.onerror = function onStreamError(error) {
+            statusDiv.textContent = 'WebSocket Error';
+            statusDiv.className = 'status disconnected';
+            addMessage(`WebSocket error: ${error}`);
+        };
+    </script>
+</body>
+</html> 

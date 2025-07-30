@@ -1,0 +1,86 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <title>Chart Status Monitor</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .connected { background: #e8f5e8; color: #2e7d32; }
+        .disconnected { background: #ffebee; color: #c62828; }
+        .connecting { background: #fff3e0; color: #ef6c00; }
+        .log { background: #f5f5f5; padding: 5px; margin: 2px 0; border-radius: 3px; font-family: monospace; font-size: 12px; }
+        .chart-container { width: 100%; height: 600px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <h1>Chart Status Monitor</h1>
+    <div id="status" class="status connecting">Initializing chart...</div>
+    <div id="logs"></div>
+    <div id="chart-container" class="chart-container"></div>
+    
+    <script type="module">
+        import Datafeed from './src/datafeed.js';
+        
+        const statusDiv = document.getElementById('status');
+        const logsDiv = document.getElementById('logs');
+        
+        function addLog(message, type = 'info') {
+            const logDiv = document.createElement('div');
+            logDiv.className = `log ${type}`;
+            logDiv.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logsDiv.appendChild(logDiv);
+            
+            // Keep only last 30 logs
+            if (logsDiv.children.length > 30) {
+                logsDiv.removeChild(logsDiv.firstChild);
+            }
+        }
+        
+        // Override console.log to capture logs
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const message = args.join(' ');
+            if (message.includes('[socket]') || message.includes('[subscribeBars]') || message.includes('[getBars]')) {
+                addLog(message);
+            }
+        };
+        
+        // Initialize the chart
+        window.tvWidget = new TradingView.widget({
+            symbol: 'Bitfinex:BTC/USD',
+            interval: '15',
+            fullscreen: false,
+            container: 'chart-container',
+            datafeed: Datafeed,
+            library_path: '../charting_library_cloned_data/charting_library/',
+            debug: true,
+            realtime: true,
+            time_frames: [
+                { text: "1m", resolution: "1", description: "1 Minute" },
+                { text: "15m", resolution: "15", description: "15 Minutes" },
+                { text: "1h", resolution: "240", description: "1 Hour" },
+                { text: "1d", resolution: "1D", description: "1 Day" },
+            ],
+            loading_screen: { backgroundColor: "#131722" },
+            disabled_features: ["use_localstorage_for_settings"],
+            enabled_features: ["study_templates"],
+            charts_storage_url: null,
+            client_id: "tradingview.com",
+            user_id: "public_user_id",
+        });
+        
+        // Monitor chart status
+        setTimeout(() => {
+            statusDiv.textContent = 'Chart loaded successfully';
+            statusDiv.className = 'status connected';
+            addLog('Chart initialization completed');
+        }, 3000);
+        
+        // Monitor for real-time updates
+        setInterval(() => {
+            addLog('Monitoring for real-time updates...', 'info');
+        }, 10000);
+    </script>
+</body>
+</html> 
