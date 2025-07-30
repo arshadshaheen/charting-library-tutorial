@@ -1,7 +1,8 @@
-import { parseFullSymbol, apiKey } from './helpers.js';
+import { parseFullSymbol } from './helpers.js';
+import { config } from './config.js';
 
 // Using the documentation approach
-const ccStreamer = new WebSocket('wss://streamer.cryptocompare.com/v2?api_key=' + apiKey);
+const ccStreamer = new WebSocket(`${config.webSocketUrl}?api_key=${config.apiKey}`);
 
 // Add connection status tracking
 let isConnected = false;

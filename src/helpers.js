@@ -1,10 +1,10 @@
-// Get a CryptoCompare API key CryptoCompare https://www.cryptocompare.com/coins/guides/how-to-use-our-api/
-export const apiKey = "e459128e835fcf1a73fdd58a89bedabf6efcb788838ebc612a613bb5166f8cc1";
+import { config } from './config.js';
+
 // Makes requests to CryptoCompare API
 export async function makeApiRequest(path) {
 	try {
-		const url = new URL(`https://min-api.cryptocompare.com/${path}`);
-		url.searchParams.append('api_key',apiKey)
+		const url = new URL(`${config.baseUrl}/${path}`);
+		url.searchParams.append('api_key', config.apiKey);
 		const response = await fetch(url.toString());
 		return response.json();
 	} catch (error) {

@@ -1,9 +1,10 @@
 // Datafeed implementation
 import Datafeed from './datafeed.js';
+import { config } from './config.js';
 
 window.tvWidget = new TradingView.widget({
-	symbol: 'Bitfinex:BTC/USD',             // Default symbol
-	interval: '15',                        // Default interval (15 minutes for better real-time visibility)
+	symbol: config.symbol,                  // Default symbol from config
+	interval: config.interval,              // Default interval from config
 	fullscreen: true,                       // Displays the chart in the fullscreen mode
 	container: 'tv_chart_container',        // Reference to an attribute of the DOM element
 	datafeed: Datafeed,
@@ -21,7 +22,7 @@ window.tvWidget = new TradingView.widget({
 	disabled_features: ["use_localstorage_for_settings"],
 	enabled_features: ["study_templates"],
 	charts_storage_url: null,
-	client_id: "tradingview.com",
-	user_id: "public_user_id",
+	client_id: config.clientId,
+	user_id: config.userId,
 
 });

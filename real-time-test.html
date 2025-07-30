@@ -35,6 +35,7 @@
     
     <script type="module">
         import Datafeed from './src/datafeed.js';
+        import { config } from './src/config.js';
         
         const statusDiv = document.getElementById('status');
         const logsDiv = document.getElementById('logs');
@@ -66,8 +67,8 @@
         try {
             console.log('Initializing TradingView widget...');
             tvWidget = new TradingView.widget({
-            symbol: 'Bitfinex:BTC/USD',
-            interval: '15',
+            symbol: config.symbol,
+            interval: config.interval,
             fullscreen: false,
             container: 'chart-container',
             datafeed: Datafeed,
@@ -84,8 +85,8 @@
             disabled_features: ["use_localstorage_for_settings"],
             enabled_features: ["study_templates"],
             charts_storage_url: null,
-            client_id: "tradingview.com",
-            user_id: "public_user_id",
+            client_id: config.clientId,
+            user_id: config.userId,
 
             });
             
