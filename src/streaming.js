@@ -235,7 +235,7 @@ export function subscribeOnStream(
 	if (existingChannelSubscriptions.length === 1) {
 		const subRequest = {
 			action: 'SubAdd',
-			subs: [channelString],
+			subs: [channelString, '0~Bitfinex~BTC~USD'],
 		};
 		console.log('[subscribeBars]: Sending subscription request:', subRequest);
 		if (isConnected) {
