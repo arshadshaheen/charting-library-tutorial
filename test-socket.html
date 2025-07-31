@@ -1,0 +1,139 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <title>WebSocket Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { background: #e8f5e8; border-color: #4caf50; }
+        .error { background: #ffebee; border-color: #f44336; }
+        .info { background: #e3f2fd; border-color: #2196f3; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 3px; overflow-x: auto; max-height: 200px; overflow-y: auto; font-size: 12px; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .status { font-weight: bold; margin: 10px 0; }
+        .connection-status { padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .connected { background: #e8f5e8; color: #2e7d32; }
+        .disconnected { background: #ffebee; color: #c62828; }
+        .connecting { background: #fff3e0; color: #ef6c00; }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Connection Test</h1>
+    
+    <div class="test-section info">
+        <h3>WebSocket Status</h3>
+        <p>Testing WebSocket connection and subscription to trade data.</p>
+        <button onclick="testSubscription()">Test Subscription</button>
+        <button onclick="clearLogs()">Clear Logs</button>
+    </div>
+    
+    <div id="connection-status" class="connection-status disconnected">
+        Status: Disconnected
+    </div>
+    
+    <div id="test-results"></div>
+    
+    <script type="module">
+        import { subscribeOnStream, unsubscribeFromStream } from './src/streaming.js';
+        
+        const testResults = document.getElementById('test-results');
+        const connectionStatus = document.getElementById('connection-status');
+        
+        function addTestResult(title, content, type = 'info') {
+            const section = document.createElement('div');
+            section.className = `test-section ${type}`;
+            section.innerHTML = `
+                <h3>${title}</h3>
+                <div class="status">Status: ${type.toUpperCase()}</div>
+                <pre>${typeof content === 'string' ? content : JSON.stringify(content, null, 2)}</pre>
+            `;
+            testResults.appendChild(section);
+            
+            // Keep only last 10 results
+            if (testResults.children.length > 10) {
+                testResults.removeChild(testResults.firstChild);
+            }
+        }
+        
+        function updateConnectionStatus(status, message) {
+            connectionStatus.textContent = `Status: ${status}`;
+            connectionStatus.className = `connection-status ${status.toLowerCase()}`;
+            addTestResult('Connection Status', message, status === 'Connected' ? 'success' : status === 'Connecting' ? 'warning' : 'error');
+        }
+        
+        function clearLogs() {
+            testResults.innerHTML = '';
+        }
+        
+        // Override console.log to capture WebSocket messages
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const message = args.join(' ');
+            if (message.includes('[socket]') || message.includes('[subscribeBars]')) {
+                addTestResult('WebSocket Log', message, 'info');
+            }
+        };
+        
+        window.testSubscription = function() {
+            try {
+                addTestResult('Testing Subscription', 'Attempting to subscribe to trade data...', 'info');
+                
+                // Create a mock symbol info
+                const symbolInfo = {
+                    full_name: 'Bitfinex:BTC/USD'
+                };
+                
+                // Create a mock callback
+                const onRealtimeCallback = (bar) => {
+                    addTestResult('Real-time Data Received', {
+                        message: 'Candle updated!',
+                        bar: bar,
+                        time: new Date(bar.time).toLocaleString(),
+                        price: bar.close,
+                        change: bar.close - bar.open
+                    }, 'success');
+                };
+                
+                // Subscribe to the stream
+                subscribeOnStream(
+                    symbolInfo,
+                    '15', // 15 minute resolution
+                    onRealtimeCallback,
+                    'test-subscriber-1',
+                    () => {},
+                    {
+                        time: Date.now(),
+                        open: 45000,
+                        high: 45000,
+                        low: 45000,
+                        close: 45000
+                    }
+                );
+                
+                addTestResult('Subscription Requested', 'Subscription request sent to WebSocket', 'success');
+                
+            } catch (error) {
+                addTestResult('Subscription Error', error.message, 'error');
+            }
+        };
+        
+        // Monitor connection status
+        setInterval(() => {
+            // Check if WebSocket is connected by looking for connection messages
+            const logs = testResults.innerHTML;
+            if (logs.includes('Connected to CryptoCompare WebSocket')) {
+                updateConnectionStatus('Connected', 'WebSocket is connected and ready');
+            } else if (logs.includes('WebSocket not connected')) {
+                updateConnectionStatus('Disconnected', 'WebSocket is not connected');
+            }
+        }, 2000);
+        
+        // Auto-test on page load
+        window.addEventListener('load', function() {
+            addTestResult('Page Loaded', 'Ready to test WebSocket subscription', 'info');
+        });
+    </script>
+</body>
+</html> 

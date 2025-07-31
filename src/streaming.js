@@ -67,57 +67,110 @@ ccStreamer.onmessage = function onStreamMessage(event) {
             return;
         }
         
-        		const channelString = `0~${exchange}~${fromSymbol}~${toSymbol}`;
-		
-		// Find all subscriptions for this channel (different resolutions)
-		const subscriptions = Array.from(channelToSubscription.values())
-			.filter(item => item.channelString === channelString);
-		
-		if (subscriptions.length === 0) {
-			console.log('[socket] No subscriptions found for channel:', channelString);
-			return;
-		}
+        const channelString = `0~${exchange}~${fromSymbol}~${toSymbol}`;
         
-        		// Process each subscription (different resolutions) separately
-		subscriptions.forEach(subscriptionItem => {
-			const lastBar = subscriptionItem.lastDailyBar;
-			
-			if (!lastBar) {
-				console.log('[socket] No lastBar available for channel:', channelString, 'resolution:', subscriptionItem.resolution);
-				return;
-			}
-			
-			// Update the current candle with new trade data
-			const updatedBar = {
-				...lastBar,
-				high: Math.max(lastBar.high, tradePrice),
-				low: Math.min(lastBar.low, tradePrice),
-				close: tradePrice,
-			};
-			
-			// Update the stored bar
-			subscriptionItem.lastDailyBar = updatedBar;
-			
-			console.log('[socket] Updated candle for', channelString, 'price:', tradePrice, 'resolution:', subscriptionItem.resolution);
-			
-			// Send updated bar to all subscribers for this resolution
-			subscriptionItem.handlers.forEach((handler) => {
-				console.log('[socket] Calling handler callback with updated bar:', updatedBar);
-				try {
-					handler.callback(updatedBar);
-					console.log('[socket] Successfully called handler callback');
-				} catch (error) {
-					console.error('[socket] Error in handler callback:', error);
-				}
-			});
-		});
+        // Find all subscriptions for this channel (different resolutions)
+        const subscriptions = Array.from(channelToSubscription.values())
+            .filter(item => item.channelString === channelString);
         
-
+        if (subscriptions.length === 0) {
+            console.log('[socket] No subscriptions found for channel:', channelString);
+            return;
+        }
+        
+        // Process each subscription (different resolutions) separately
+        subscriptions.forEach(subscriptionItem => {
+            let lastBar = subscriptionItem.lastDailyBar;
+            
+            if (!lastBar) {
+                console.log('[socket] No lastBar available for channel:', channelString, 'resolution:', subscriptionItem.resolution);
+                return;
+            }
+            
+            // Convert resolution to milliseconds
+            const resolutionMs = getResolutionInMs(subscriptionItem.resolution);
+            
+            // Calculate the current bar time based on resolution
+            const currentBarTime = Math.floor(tradeTime / (resolutionMs / 1000)) * (resolutionMs / 1000);
+            
+            // Check if we need to create a new bar
+            if (currentBarTime > lastBar.time / 1000) {
+                // Create a new bar
+                const newBar = {
+                    time: currentBarTime * 1000,
+                    open: tradePrice,
+                    high: tradePrice,
+                    low: tradePrice,
+                    close: tradePrice,
+                };
+                
+                // Update the stored bar
+                subscriptionItem.lastDailyBar = newBar;
+                
+                console.log('[socket] Created new candle for', channelString, 'price:', tradePrice, 'resolution:', subscriptionItem.resolution, 'time:', new Date(newBar.time));
+                
+                // Send new bar to all subscribers for this resolution
+                subscriptionItem.handlers.forEach((handler) => {
+                    console.log('[socket] Calling handler callback with new bar:', newBar);
+                    try {
+                        handler.callback(newBar);
+                        console.log('[socket] Successfully called handler callback for new bar');
+                    } catch (error) {
+                        console.error('[socket] Error in handler callback:', error);
+                    }
+                });
+            } else {
+                // Update the current candle with new trade data
+                const updatedBar = {
+                    ...lastBar,
+                    high: Math.max(lastBar.high, tradePrice),
+                    low: Math.min(lastBar.low, tradePrice),
+                    close: tradePrice,
+                };
+                
+                // Update the stored bar
+                subscriptionItem.lastDailyBar = updatedBar;
+                
+                console.log('[socket] Updated candle for', channelString, 'price:', tradePrice, 'resolution:', subscriptionItem.resolution);
+                
+                // Send updated bar to all subscribers for this resolution
+                subscriptionItem.handlers.forEach((handler) => {
+                    console.log('[socket] Calling handler callback with updated bar:', updatedBar);
+                    try {
+                        handler.callback(updatedBar);
+                        console.log('[socket] Successfully called handler callback');
+                    } catch (error) {
+                        console.error('[socket] Error in handler callback:', error);
+                    }
+                });
+            }
+        });
         
     } catch (error) {
         console.log('[socket] Error parsing message:', error);
     }
 };
+
+// Helper function to convert resolution to milliseconds
+function getResolutionInMs(resolution) {
+    const resolutionMap = {
+        '1': 60 * 1000,           // 1 minute
+        '3': 3 * 60 * 1000,       // 3 minutes
+        '5': 5 * 60 * 1000,       // 5 minutes
+        '15': 15 * 60 * 1000,     // 15 minutes
+        '30': 30 * 60 * 1000,     // 30 minutes
+        '45': 45 * 60 * 1000,     // 45 minutes
+        '60': 60 * 60 * 1000,     // 1 hour
+        '120': 2 * 60 * 60 * 1000, // 2 hours
+        '180': 3 * 60 * 60 * 1000, // 3 hours
+        '240': 4 * 60 * 60 * 1000, // 4 hours
+        '1D': 24 * 60 * 60 * 1000, // 1 day
+        '1W': 7 * 24 * 60 * 60 * 1000, // 1 week
+        '1M': 30 * 24 * 60 * 60 * 1000, // 1 month
+    };
+    
+    return resolutionMap[resolution] || 60 * 1000; // Default to 1 minute
+}
 
 function getNextDailyBarTime(barTime) {
     const date = new Date(barTime * 1000);
@@ -174,11 +227,12 @@ export function subscribeOnStream(
 		lastDailyBar
 	);
 	
-	// Only subscribe to WebSocket if we don't already have a subscription for this channel
-	const existingChannelSubscription = Array.from(channelToSubscription.values())
-		.find(item => item.channelString === channelString);
+	// Check if we already have any subscription for this channel (across all resolutions)
+	const existingChannelSubscriptions = Array.from(channelToSubscription.values())
+		.filter(item => item.channelString === channelString);
 	
-	if (!existingChannelSubscription) {
+	// Only subscribe to WebSocket if this is the first subscription for this channel
+	if (existingChannelSubscriptions.length === 1) {
 		const subRequest = {
 			action: 'SubAdd',
 			subs: [channelString],

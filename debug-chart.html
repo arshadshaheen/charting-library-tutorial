@@ -1,0 +1,201 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <title>Chart Debug - WebSocket Subscription</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { background: #e8f5e8; border-color: #4caf50; }
+        .error { background: #ffebee; border-color: #f44336; }
+        .info { background: #e3f2fd; border-color: #2196f3; }
+        .warning { background: #fff3e0; border-color: #ff9800; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 3px; overflow-x: auto; max-height: 300px; overflow-y: auto; font-size: 12px; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .status { font-weight: bold; margin: 10px 0; }
+        .chart-container { height: 400px; border: 1px solid #ccc; margin: 20px 0; }
+        .log-entry { margin: 5px 0; padding: 5px; background: #f9f9f9; border-left: 3px solid #007bff; }
+        .log-success { border-left-color: #4caf50; }
+        .log-error { border-left-color: #f44336; }
+        .log-warning { border-left-color: #ff9800; }
+    </style>
+</head>
+<body>
+    <h1>Chart Debug - WebSocket Subscription Test</h1>
+    
+    <div class="debug-section info">
+        <h3>Chart Status</h3>
+        <p>Testing if the main chart is properly subscribing to WebSocket and receiving real-time updates.</p>
+        <button onclick="checkChartStatus()">Check Chart Status</button>
+        <button onclick="forceChartUpdate()">Force Chart Update</button>
+        <button onclick="clearLogs()">Clear Logs</button>
+    </div>
+    
+    <div class="debug-section">
+        <h3>Chart Container</h3>
+        <div id="tv_chart_container" class="chart-container"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h3>Debug Logs</h3>
+        <div id="debug-logs"></div>
+    </div>
+    
+    <script type="module">
+        import Datafeed from './src/datafeed.js';
+        import { config } from './src/config.js';
+        
+        const debugLogs = document.getElementById('debug-logs');
+        let chartWidget = null;
+        let subscriptionActive = false;
+        
+        function addLog(message, type = 'info') {
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+            logEntry.innerHTML = `<strong>[${new Date().toLocaleTimeString()}]</strong> ${message}`;
+            debugLogs.appendChild(logEntry);
+            
+            // Keep only last 50 logs
+            if (debugLogs.children.length > 50) {
+                debugLogs.removeChild(debugLogs.firstChild);
+            }
+            
+            // Auto-scroll to bottom
+            debugLogs.scrollTop = debugLogs.scrollHeight;
+        }
+        
+        function clearLogs() {
+            debugLogs.innerHTML = '';
+        }
+        
+        // Override console.log to capture chart-related messages
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const message = args.join(' ');
+            
+            // Filter for relevant messages
+            if (message.includes('[subscribeBars]') || 
+                message.includes('[socket]') || 
+                message.includes('[getBars]') ||
+                message.includes('TradingView') ||
+                message.includes('WebSocket')) {
+                addLog(message, 'info');
+            }
+        };
+        
+        // Override console.error to capture errors
+        const originalError = console.error;
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            const message = args.join(' ');
+            addLog(`ERROR: ${message}`, 'error');
+        };
+        
+        // Initialize the chart
+        function initializeChart() {
+            addLog('Initializing TradingView chart...', 'info');
+            
+            try {
+                chartWidget = new TradingView.widget({
+                    symbol: config.symbol,
+                    interval: config.interval,
+                    fullscreen: false,
+                    container: 'tv_chart_container',
+                    datafeed: Datafeed,
+                    library_path: 'charting_library_cloned_data/charting_library/',
+                    debug: true,
+                    realtime: true,
+                    time_frames: [
+                        { text: "1m", resolution: "1", description: "1 Minute" },
+                        { text: "15m", resolution: "15", description: "15 Minutes" },
+                        { text: "1h", resolution: "240", description: "1 Hour" },
+                        { text: "1d", resolution: "1D", description: "1 Day" },
+                    ],
+                    loading_screen: { backgroundColor: "#131722" },
+                    disabled_features: ["use_localstorage_for_settings"],
+                    enabled_features: ["study_templates"],
+                    charts_storage_url: null,
+                    client_id: config.clientId,
+                    user_id: config.userId,
+                });
+                
+                addLog('Chart widget created successfully', 'success');
+                
+                // Listen for chart ready event
+                chartWidget.onChartReady(() => {
+                    addLog('Chart is ready and loaded', 'success');
+                    checkSubscriptionStatus();
+                });
+                
+            } catch (error) {
+                addLog(`Failed to create chart widget: ${error.message}`, 'error');
+            }
+        }
+        
+        function checkSubscriptionStatus() {
+            addLog('Checking subscription status...', 'info');
+            
+            // Check if WebSocket is connected
+            const logs = debugLogs.innerHTML;
+            if (logs.includes('Connected to CryptoCompare WebSocket')) {
+                addLog('✅ WebSocket is connected', 'success');
+            } else {
+                addLog('❌ WebSocket is not connected', 'error');
+            }
+            
+            // Check if subscription is active
+            if (logs.includes('Subscribe to streaming')) {
+                addLog('✅ Chart subscription is active', 'success');
+                subscriptionActive = true;
+            } else {
+                addLog('❌ Chart subscription not found', 'warning');
+                subscriptionActive = false;
+            }
+            
+            // Check for real-time updates
+            if (logs.includes('Real-time Data Received') || logs.includes('Updated candle')) {
+                addLog('✅ Real-time updates are working', 'success');
+            } else {
+                addLog('❌ No real-time updates detected', 'warning');
+            }
+        }
+        
+        function forceChartUpdate() {
+            addLog('Attempting to force chart update...', 'info');
+            
+            if (chartWidget && chartWidget.activeChart) {
+                try {
+                    // Try to trigger a chart update
+                    chartWidget.activeChart().resetData();
+                    addLog('Chart data reset triggered', 'success');
+                } catch (error) {
+                    addLog(`Failed to reset chart: ${error.message}`, 'error');
+                }
+            } else {
+                addLog('Chart widget not ready', 'warning');
+            }
+        }
+        
+        window.checkChartStatus = checkSubscriptionStatus;
+        window.forceChartUpdate = forceChartUpdate;
+        window.clearLogs = clearLogs;
+        
+        // Initialize chart when page loads
+        window.addEventListener('load', function() {
+            addLog('Page loaded, initializing chart...', 'info');
+            initializeChart();
+        });
+        
+        // Monitor for subscription events
+        setInterval(() => {
+            if (subscriptionActive) {
+                const logs = debugLogs.innerHTML;
+                if (logs.includes('Updated candle') || logs.includes('Created new candle')) {
+                    addLog('🔄 Real-time candle update detected!', 'success');
+                }
+            }
+        }, 5000);
+    </script>
+</body>
+</html> 
